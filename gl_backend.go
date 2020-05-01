@@ -102,7 +102,7 @@ const (
 )
 
 type glContext struct {
-	vao			uint32
+	vao          uint32
 	shader       glShader
 	view         [2]float32
 	textures     []*glTexture
@@ -159,7 +159,7 @@ func (c *glContext) setStencilFunc(fun uint32, ref int, mask uint32) {
 		c.stencilFunc = fun
 		c.stencilFuncRef = ref
 		c.stencilMask = mask
-		gl.StencilFunc(uint32(fun),int32( ref), mask)
+		gl.StencilFunc(uint32(fun), int32(ref), mask)
 	}
 }
 
@@ -394,6 +394,12 @@ func (c *glContext) triangles(call *glCall) {
 	gl.DrawArrays(gl.TRIANGLES, int32(call.triangleOffset), int32(call.triangleCount))
 }
 
+func (c *glContext) triangleStrip(call *glCall) {
+	c.setUniforms(call.uniformOffset, call.image)
+	checkError(c, "triangle strip fill")
+	gl.DrawArrays(gl.TRIANGLE_STRIP, int32(call.triangleOffset), int32(call.triangleCount))
+}
+
 type glParams struct {
 	isEdgeAntiAlias bool
 	context         *glContext
@@ -607,6 +613,8 @@ func (p *glParams) renderFlush() {
 				c.stroke(call)
 			case glnvgTRIANGLES:
 				c.triangles(call)
+			case glnvgTRIANGLESTRIP:
+				c.triangleStrip(call)
 			}
 		}
 		gl.DisableVertexAttribArray(c.shader.vertexAttrib)
@@ -826,6 +834,39 @@ func (p *glParams) renderTriangles(paint *Paint, scissor *nvgScissor, vertexes [
 	f0.setType(nsvgShaderIMG)
 }
 
+func (p *glParams) renderTriangleStrip(paint *Paint, scissor *nvgScissor, vertexes []nvgVertex) {
+	c := p.context
+
+	vertexCount := len(vertexes)
+	vertexOffset := c.allocVertexMemory(vertexCount)
+	callIndex := len(c.calls)
+
+	c.calls = append(c.calls, glCall{
+		callType:       glnvgTRIANGLESTRIP,
+		image:          paint.image,
+		triangleOffset: vertexOffset / 4,
+		triangleCount:  vertexCount,
+	})
+	call := &c.calls[callIndex]
+
+	for i := 0; i < vertexCount; i++ {
+		vertex := &vertexes[i]
+		c.vertexes[vertexOffset] = vertex.x
+		c.vertexes[vertexOffset+1] = vertex.y
+		c.vertexes[vertexOffset+2] = vertex.u
+		c.vertexes[vertexOffset+3] = vertex.v
+		vertexOffset += 4
+	}
+
+	// Fill shader
+	var frags []glFragUniforms
+	frags, call.uniformOffset = c.allocFragUniforms(1)
+	f0 := &frags[0]
+	f0.reset()
+	c.convertPaint(f0, paint, scissor, 1.0, 1.0, -1.0)
+	f0.setType(nsvgShaderIMG)
+}
+
 func (p *glParams) renderDelete() {
 	c := p.context
 	c.shader.deleteShader()
@@ -878,7 +919,7 @@ func maxVertexCount(paths []nvgPath) int {
 }
 
 const (
-fillVertexShader = `
+	fillVertexShader = `
    uniform vec2 viewSize;
    in vec2 vertex;
    in vec2 tcoord;
@@ -891,7 +932,7 @@ fillVertexShader = `
 	   gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);
 	}
 `
-fillFragmentShader = `
+	fillFragmentShader = `
 	precision highp float;
 
 	uniform vec4 frag[UNIFORMARRAY_SIZE];

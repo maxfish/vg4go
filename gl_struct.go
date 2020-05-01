@@ -15,6 +15,7 @@ const (
 	glnvgCONVEXFILL
 	glnvgSTROKE
 	glnvgTRIANGLES
+	glnvgTRIANGLESTRIP
 )
 
 type glCall struct {
