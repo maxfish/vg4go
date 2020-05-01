@@ -1,9 +1,5 @@
 package nanovgo
 
-import (
-	"github.com/goxjs/gl"
-)
-
 const (
 	nsvgShaderFILLGRAD = iota
 	nsvgShaderFILLIMG
@@ -108,7 +104,7 @@ func (u *glFragUniforms) setType(typeCode float32) {
 
 type glTexture struct {
 	id            int
-	tex           gl.Texture
+	tex           Texture
 	width, height int
 	texType       nvgTextureType
 	flags         ImageFlags

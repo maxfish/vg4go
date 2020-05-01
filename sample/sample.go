@@ -1,15 +1,14 @@
-// +build !js
-
 package main
 
 import (
 	"fmt"
-	"github.com/goxjs/gl"
-	"github.com/goxjs/glfw"
+	"github.com/go-gl/gl/v2.1/gl"
+	"github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/shibukawa/nanovgo"
 	"github.com/shibukawa/nanovgo/perfgraph"
 	"github.com/shibukawa/nanovgo/sample/demo"
 	"log"
+	"runtime"
 )
 
 var blowup bool
@@ -26,14 +25,18 @@ func key(w *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods gl
 }
 
 func main() {
-	err := glfw.Init(gl.ContextWatcher)
-	if err != nil {
+	runtime.LockOSThread()
+	if err := glfw.Init(); err != nil {
 		panic(err)
 	}
 	defer glfw.Terminate()
 
-	// demo MSAA
-	glfw.WindowHint(glfw.Samples, 4)
+	//glfw.WindowHint(glfw.Samples, 4)
+	glfw.WindowHint(glfw.Resizable, glfw.True)
+	glfw.WindowHint(glfw.ContextVersionMajor, 2)
+	glfw.WindowHint(glfw.ContextVersionMinor, 1)
+	//glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
+	//glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.False)
 
 	window, err := glfw.CreateWindow(1000, 600, "NanoVGo", nil, nil)
 	if err != nil {
@@ -42,7 +45,21 @@ func main() {
 	window.SetKeyCallback(key)
 	window.MakeContextCurrent()
 
-	ctx, err := nanovgo.NewContext(0 /*nanovgo.AntiAlias | nanovgo.StencilStrokes | nanovgo.Debug*/)
+	// OpenGL
+	if err := gl.Init(); err != nil {
+		panic(err)
+	}
+	gl.Enable(gl.DEPTH_TEST)
+	gl.DepthMask(true)
+	gl.DepthFunc(gl.LEQUAL)
+	gl.DepthRange(0.0, 1.0)
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+
+	version := gl.GoStr(gl.GetString(gl.VERSION))
+	fmt.Println("OpenGL version", version)
+
+	ctx, err := nanovgo.NewContext(nanovgo.Debug /*nanovgo.AntiAlias | nanovgo.StencilStrokes | nanovgo.Debug*/)
 	defer ctx.Delete()
 
 	if err != nil {
@@ -63,7 +80,7 @@ func main() {
 		mx, my := window.GetCursorPos()
 
 		pixelRatio := float32(fbWidth) / float32(winWidth)
-		gl.Viewport(0, 0, fbWidth, fbHeight)
+		gl.Viewport(0, 0, int32(fbWidth), int32(fbHeight))
 		if premult {
 			gl.ClearColor(0, 0, 0, 0)
 		} else {
@@ -83,6 +100,7 @@ func main() {
 		ctx.EndFrame()
 
 		gl.Enable(gl.DEPTH_TEST)
+
 		window.SwapBuffers()
 		glfw.PollEvents()
 	}

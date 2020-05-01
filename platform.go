@@ -1,6 +1,3 @@
-// +build darwin linux
-// +build arm arm64
-
 package nanovgo
 
 import (
@@ -10,8 +7,8 @@ import (
 
 type Float float32
 
-var shaderHeader string = `
-#version 100
+var shaderHeader = `
+#version 110
 #define NANOVG_GL2 1
 #define UNIFORMARRAY_SIZE 11
 `

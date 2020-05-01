@@ -3,7 +3,7 @@ package nanovgo
 import (
 	"errors"
 	"fmt"
-	"github.com/goxjs/gl"
+	"github.com/go-gl/gl/v2.1/gl"
 	"strings"
 )
 
@@ -26,44 +26,46 @@ func NewContext(flags CreateFlags) (*Context, error) {
 }
 
 type glShader struct {
-	program      gl.Program
-	fragment     gl.Shader
-	vertex       gl.Shader
-	locations    [glnvgMaxLOCS]gl.Uniform
-	vertexAttrib gl.Attrib
-	tcoordAttrib gl.Attrib
+	program      Program
+	fragment     Shader
+	vertex       Shader
+	locations    [glnvgMaxLOCS]Uniform
+	vertexAttrib Attrib
+	tcoordAttrib Attrib
 }
 
 func (s *glShader) createShader(name, header, opts, vShader, fShader string) error {
-	program := gl.CreateProgram()
+	program := CreateProgram()
 
-	vertexShader := gl.CreateShader(gl.VERTEX_SHADER)
-	gl.ShaderSource(vertexShader, strings.Join([]string{header, opts, vShader}, "\n"))
-	gl.CompileShader(vertexShader)
-	status := gl.Enum(gl.GetShaderi(vertexShader, gl.COMPILE_STATUS))
+	vertexShader := CreateShader(gl.VERTEX_SHADER)
+	resultingText := strings.Join([]string{header, opts, vShader}, "\n")
+	ShaderSource(vertexShader, resultingText)
+	CompileShader(vertexShader)
+	status := Enum(GetShaderi(vertexShader, gl.COMPILE_STATUS))
 	if status != gl.TRUE {
 		return dumpShaderError(vertexShader, name, "vert")
 	}
 
-	fragmentShader := gl.CreateShader(gl.FRAGMENT_SHADER)
-	gl.ShaderSource(fragmentShader, strings.Join([]string{header, opts, fShader}, "\n"))
-	gl.CompileShader(fragmentShader)
-	status = gl.Enum(gl.GetShaderi(fragmentShader, gl.COMPILE_STATUS))
+	fragmentShader := CreateShader(gl.FRAGMENT_SHADER)
+	resultingText = strings.Join([]string{header, opts, fShader}, "\n")
+	ShaderSource(fragmentShader, resultingText)
+	CompileShader(fragmentShader)
+	status = Enum(GetShaderi(fragmentShader, gl.COMPILE_STATUS))
 	if status != gl.TRUE {
 		return dumpShaderError(fragmentShader, name, "vert")
 	}
 
-	gl.AttachShader(program, vertexShader)
-	gl.AttachShader(program, fragmentShader)
+	AttachShader(program, vertexShader)
+	AttachShader(program, fragmentShader)
 
-	gl.LinkProgram(program)
-	status = gl.Enum(gl.GetProgrami(program, gl.LINK_STATUS))
+	LinkProgram(program)
+	status = Enum(GetProgrami(program, gl.LINK_STATUS))
 	if status != gl.TRUE {
 		return dumpProgramError(program, name)
 	}
 
-	s.vertexAttrib = gl.GetAttribLocation(program, "vertex")
-	s.tcoordAttrib = gl.GetAttribLocation(program, "tcoord")
+	s.vertexAttrib = GetAttribLocation(program, "vertex")
+	s.tcoordAttrib = GetAttribLocation(program, "tcoord")
 
 	s.program = program
 	s.vertex = vertexShader
@@ -74,20 +76,21 @@ func (s *glShader) createShader(name, header, opts, vShader, fShader string) err
 
 func (s *glShader) deleteShader() {
 	if s.program.Valid() {
-		gl.DeleteProgram(s.program)
+		DeleteProgram(s.program)
 	}
 	if s.vertex.Valid() {
-		gl.DeleteShader(s.vertex)
+		DeleteShader(s.vertex)
 	}
 	if s.fragment.Valid() {
-		gl.DeleteShader(s.fragment)
+		DeleteShader(s.fragment)
 	}
 }
 
 func (s *glShader) getUniforms() {
-	s.locations[glnvgLocVIEWSIZE] = gl.GetUniformLocation(s.program, "viewSize")
-	s.locations[glnvgLocTEX] = gl.GetUniformLocation(s.program, "tex")
-	s.locations[glnvgLocFRAG] = gl.GetUniformLocation(s.program, "frag")
+	s.locations[glnvgLocVIEWSIZE] = GetUniformLocation(s.program, "viewSize")
+	s.locations[glnvgLocTEX] = GetUniformLocation(s.program, "tex")
+	s.locations[glnvgLocFRAG] = GetUniformLocation(s.program, "frag")
+	//s.locations[glnvgLocProjection] = GetUniformLocation(s.program, "projection")
 }
 
 const (
@@ -104,7 +107,7 @@ type glContext struct {
 	view         [2]float32
 	textures     []*glTexture
 	textureID    int
-	vertexBuffer gl.Buffer
+	vertexBuffer Buffer
 	flags        CreateFlags
 	calls        []glCall
 	paths        []glPath
@@ -112,7 +115,7 @@ type glContext struct {
 	uniforms     []glFragUniforms
 
 	stencilMask     uint32
-	stencilFunc     gl.Enum
+	stencilFunc     Enum
 	stencilFuncRef  int
 	stencilFuncMask uint32
 }
@@ -129,18 +132,18 @@ func (c *glContext) findTexture(id int) *glTexture {
 func (c *glContext) deleteTexture(id int) error {
 	tex := c.findTexture(id)
 	if tex != nil && (tex.flags&ImageNoDelete) == 0 {
-		gl.DeleteTexture(tex.tex)
+		DeleteTexture(tex.tex)
 		tex.id = 0
 		return nil
 	}
 	return errors.New("can't find texture")
 }
 
-func (c *glContext) bindTexture(tex *gl.Texture) {
+func (c *glContext) bindTexture(tex *Texture) {
 	if tex == nil {
-		gl.BindTexture(gl.TEXTURE_2D, gl.Texture{})
+		BindTexture(gl.TEXTURE_2D, Texture{})
 	} else {
-		gl.BindTexture(gl.TEXTURE_2D, *tex)
+		BindTexture(gl.TEXTURE_2D, *tex)
 	}
 }
 
@@ -151,12 +154,12 @@ func (c *glContext) setStencilMask(mask uint32) {
 	}
 }
 
-func (c *glContext) setStencilFunc(fun gl.Enum, ref int, mask uint32) {
+func (c *glContext) setStencilFunc(fun Enum, ref int, mask uint32) {
 	if c.stencilFunc != fun || c.stencilFuncRef != ref || c.stencilFuncMask != mask {
 		c.stencilFunc = fun
 		c.stencilFuncRef = ref
 		c.stencilMask = mask
-		gl.StencilFunc(fun, ref, mask)
+		StencilFunc(fun, ref, mask)
 	}
 }
 
@@ -258,13 +261,13 @@ func (c *glContext) convertPaint(frag *glFragUniforms, paint *Paint, scissor *nv
 
 func (c *glContext) setUniforms(uniformOffset, image int) {
 	frag := c.uniforms[uniformOffset]
-	gl.Uniform4fv(c.shader.locations[glnvgLocFRAG], frag[:])
+	Uniform4fv(c.shader.locations[glnvgLocFRAG], frag[:])
 
 	if image != 0 {
 		c.bindTexture(&c.findTexture(image).tex)
 		checkError(c, "tex paint tex")
 	} else {
-		c.bindTexture(&gl.Texture{})
+		c.bindTexture(&Texture{})
 	}
 }
 
@@ -281,18 +284,18 @@ func (c *glContext) fill(call *glCall) {
 	c.setUniforms(call.uniformOffset, 0)
 	checkError(c, "fill simple")
 
-	gl.StencilOpSeparate(gl.FRONT, gl.KEEP, gl.KEEP, gl.INCR_WRAP)
-	gl.StencilOpSeparate(gl.BACK, gl.KEEP, gl.KEEP, gl.DECR_WRAP)
+	StencilOpSeparate(gl.FRONT, gl.KEEP, gl.KEEP, gl.INCR_WRAP)
+	StencilOpSeparate(gl.BACK, gl.KEEP, gl.KEEP, gl.DECR_WRAP)
 
 	gl.Disable(gl.CULL_FACE)
 	for i := call.pathOffset; i < pathSentinel; i++ {
 		path := &c.paths[i]
-		gl.DrawArrays(gl.TRIANGLE_FAN, path.fillOffset, path.fillCount)
+		DrawArrays(gl.TRIANGLE_FAN, path.fillOffset, path.fillCount)
 	}
-	gl.Enable(gl.CULL_FACE)
+	Enable(gl.CULL_FACE)
 
 	// Draw anti-aliased pixels
-	gl.ColorMask(true, true, true, true)
+	ColorMask(true, true, true, true)
 	c.setUniforms(call.uniformOffset+1, call.image)
 
 	if c.flags&AntiAlias != 0 {
@@ -301,16 +304,16 @@ func (c *glContext) fill(call *glCall) {
 		// Draw fringes
 		for i := call.pathOffset; i < pathSentinel; i++ {
 			path := &c.paths[i]
-			gl.DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
 		}
 	}
 
 	// Draw fill
 	c.setStencilFunc(gl.NOTEQUAL, 0x00, 0xff)
-	gl.StencilOp(gl.ZERO, gl.ZERO, gl.ZERO)
-	gl.DrawArrays(gl.TRIANGLES, call.triangleOffset, call.triangleCount)
+	StencilOp(gl.ZERO, gl.ZERO, gl.ZERO)
+	DrawArrays(gl.TRIANGLES, call.triangleOffset, call.triangleCount)
 
-	gl.Disable(gl.STENCIL_TEST)
+	Disable(gl.STENCIL_TEST)
 }
 
 func (c *glContext) convexFill(call *glCall) {
@@ -321,13 +324,13 @@ func (c *glContext) convexFill(call *glCall) {
 
 	for i := range paths {
 		path := &paths[i]
-		gl.DrawArrays(gl.TRIANGLE_FAN, path.fillOffset, path.fillCount)
+		DrawArrays(gl.TRIANGLE_FAN, path.fillOffset, path.fillCount)
 	}
 
 	if c.flags&AntiAlias != 0 {
 		for i := range paths {
 			path := &paths[i]
-			gl.DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
 		}
 	}
 }
@@ -336,45 +339,45 @@ func (c *glContext) stroke(call *glCall) {
 	paths := c.paths[call.pathOffset : call.pathOffset+call.pathCount]
 
 	if c.flags&StencilStrokes != 0 {
-		gl.Enable(gl.STENCIL_TEST)
+		Enable(gl.STENCIL_TEST)
 		c.setStencilMask(0xff)
 
 		// Fill the stroke base without overlap
 		c.setStencilFunc(gl.EQUAL, 0x00, 0xff)
-		gl.StencilOp(gl.KEEP, gl.KEEP, gl.INCR)
+		StencilOp(gl.KEEP, gl.KEEP, gl.INCR)
 		c.setUniforms(call.uniformOffset+1, call.image)
 		checkError(c, "stroke fill 0")
 		for i := range paths {
 			path := &paths[i]
-			gl.DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
 		}
 
 		// Draw anti-aliased pixels.
 		c.setUniforms(call.uniformOffset, call.image)
 		c.setStencilFunc(gl.EQUAL, 0x00, 0xff)
-		gl.StencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
+		StencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
 		for i := range paths {
 			path := &paths[i]
-			gl.DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
 		}
 
 		// Clear stencil buffer.
-		gl.ColorMask(false, false, false, false)
+		ColorMask(false, false, false, false)
 		c.setStencilFunc(gl.ALWAYS, 0x00, 0xff)
-		gl.StencilOp(gl.ZERO, gl.ZERO, gl.ZERO)
+		StencilOp(gl.ZERO, gl.ZERO, gl.ZERO)
 		checkError(c, "stroke fill 1")
 		for i := range paths {
 			path := &paths[i]
-			gl.DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
 		}
-		gl.ColorMask(true, true, true, true)
-		gl.Disable(gl.STENCIL_TEST)
+		ColorMask(true, true, true, true)
+		Disable(gl.STENCIL_TEST)
 	} else {
 		c.setUniforms(call.uniformOffset, call.image)
 		checkError(c, "stroke fill")
 		for i := range paths {
 			path := &paths[i]
-			gl.DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
 		}
 	}
 }
@@ -382,7 +385,7 @@ func (c *glContext) stroke(call *glCall) {
 func (c *glContext) triangles(call *glCall) {
 	c.setUniforms(call.uniformOffset, call.image)
 	checkError(c, "triangles fill")
-	gl.DrawArrays(gl.TRIANGLES, call.triangleOffset, call.triangleCount)
+	DrawArrays(gl.TRIANGLES, call.triangleOffset, call.triangleCount)
 }
 
 type glParams struct {
@@ -401,7 +404,7 @@ func (p *glParams) renderCreate() error {
 	checkError(context, "init")
 
 	if p.edgeAntiAlias() {
-		err := context.shader.createShader("shader", shaderHeader, "#define EDGE_AA 1", fillVertexShader, fillFragmentShader)
+		err := context.shader.createShader("shader", shaderHeader, "", fillVertexShader, fillFragmentShader)
 		if err != nil {
 			return err
 		}
@@ -414,11 +417,11 @@ func (p *glParams) renderCreate() error {
 	checkError(context, "init")
 	context.shader.getUniforms()
 
-	context.vertexBuffer = gl.CreateBuffer()
-	context.vertexBuffer = gl.CreateBuffer()
+	context.vertexBuffer = CreateBuffer()
+	context.vertexBuffer = CreateBuffer()
 
 	checkError(context, "create done")
-	gl.Finish()
+	Finish()
 	return nil
 }
 
@@ -434,50 +437,50 @@ func (p *glParams) renderCreateTexture(texType nvgTextureType, w, h int, flags I
 		}
 	}
 	tex := p.context.allocTexture()
-	tex.tex = gl.CreateTexture()
+	tex.tex = CreateTexture()
 	tex.width = w
 	tex.height = h
 	tex.texType = texType
 	tex.flags = flags
 
 	p.context.bindTexture(&tex.tex)
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 
 	if texType == nvgTextureRGBA {
 		data = prepareTextureBuffer(data, w, h, 4)
-		gl.TexImage2D(gl.TEXTURE_2D, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, data)
+		TexImage2D(gl.TEXTURE_2D, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, data)
 	} else {
 		data = prepareTextureBuffer(data, w, h, 1)
-		gl.TexImage2D(gl.TEXTURE_2D, 0, w, h, gl.LUMINANCE, gl.UNSIGNED_BYTE, data)
+		TexImage2D(gl.TEXTURE_2D, 0, w, h, gl.RED, gl.UNSIGNED_BYTE, data)
 	}
 
 	if (flags & ImageGenerateMipmaps) != 0 {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
 	} else {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
 	}
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
 	if (flags & ImageRepeatX) != 0 {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
 	} else {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	}
 
 	if (flags & ImageRepeatY) != 0 {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
 	} else {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	}
 
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 4)
+	PixelStorei(gl.UNPACK_ALIGNMENT, 4)
 
 	if (flags & ImageGenerateMipmaps) != 0 {
-		gl.GenerateMipmap(gl.TEXTURE_2D)
+		GenerateMipmap(gl.TEXTURE_2D)
 	}
 
 	p.context.checkError("create tex")
-	p.context.bindTexture(&gl.Texture{})
+	p.context.bindTexture(&Texture{})
 
 	return tex.id
 }
@@ -485,9 +488,9 @@ func (p *glParams) renderCreateTexture(texType nvgTextureType, w, h int, flags I
 func (p *glParams) renderDeleteTexture(id int) error {
 	tex := p.context.findTexture(id)
 	if tex.tex.Valid() && (tex.flags&ImageNoDelete) == 0 {
-		gl.DeleteTexture(tex.tex)
+		DeleteTexture(tex.tex)
 		tex.id = 0
-		tex.tex = gl.Texture{}
+		tex.tex = Texture{}
 		return nil
 	}
 	return errors.New("invalid texture in GLParams.deleteTexture")
@@ -499,7 +502,7 @@ func (p *glParams) renderUpdateTexture(image, x, y, w, h int, data []byte) error
 		return errors.New("invalid texture in GLParams.updateTexture")
 	}
 	p.context.bindTexture(&tex.tex)
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 
 	if tex.texType == nvgTextureRGBA {
 		data = data[y*tex.width*4:]
@@ -510,12 +513,12 @@ func (p *glParams) renderUpdateTexture(image, x, y, w, h int, data []byte) error
 	w = tex.width
 
 	if tex.texType == nvgTextureRGBA {
-		gl.TexSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, data)
+		TexSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, data)
 	} else {
-		gl.TexSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.LUMINANCE, gl.UNSIGNED_BYTE, data)
+		TexSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RED, gl.UNSIGNED_BYTE, data)
 	}
 
-	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 4)
+	PixelStorei(gl.UNPACK_ALIGNMENT, 4)
 
 	p.context.bindTexture(nil)
 
@@ -547,21 +550,21 @@ func (p *glParams) renderFlush() {
 	c := p.context
 
 	if len(c.calls) > 0 {
-		gl.UseProgram(c.shader.program)
+		UseProgram(c.shader.program)
 
-		gl.BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
-		gl.Enable(gl.CULL_FACE)
-		gl.CullFace(gl.BACK)
-		gl.FrontFace(gl.CCW)
-		gl.Enable(gl.BLEND)
-		gl.Disable(gl.DEPTH_TEST)
-		gl.Disable(gl.SCISSOR_TEST)
-		gl.ColorMask(true, true, true, true)
-		gl.StencilMask(0xffffffff)
-		gl.StencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
-		gl.StencilFunc(gl.ALWAYS, 0, 0xffffffff)
-		gl.ActiveTexture(gl.TEXTURE0)
-		gl.BindTexture(gl.TEXTURE_2D, gl.Texture{})
+		BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+		Enable(gl.CULL_FACE)
+		CullFace(gl.BACK)
+		FrontFace(gl.CCW)
+		Enable(gl.BLEND)
+		Disable(gl.DEPTH_TEST)
+		Disable(gl.SCISSOR_TEST)
+		ColorMask(true, true, true, true)
+		StencilMask(0xffffffff)
+		StencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
+		StencilFunc(gl.ALWAYS, 0, 0xffffffff)
+		ActiveTexture(gl.TEXTURE0)
+		BindTexture(gl.TEXTURE_2D, Texture{})
 		c.stencilMask = 0xffffffff
 		c.stencilFunc = gl.ALWAYS
 		c.stencilFuncRef = 0
@@ -570,16 +573,23 @@ func (p *glParams) renderFlush() {
 		b := castFloat32ToByte(c.vertexes)
 		//dumpLog("vertex:", c.vertexes)
 		// Upload vertex data
-		gl.BindBuffer(gl.ARRAY_BUFFER, c.vertexBuffer)
-		gl.BufferData(gl.ARRAY_BUFFER, b, gl.STREAM_DRAW)
-		gl.EnableVertexAttribArray(c.shader.vertexAttrib)
-		gl.EnableVertexAttribArray(c.shader.tcoordAttrib)
-		gl.VertexAttribPointer(c.shader.vertexAttrib, 2, gl.FLOAT, false, 4*4, 0)
-		gl.VertexAttribPointer(c.shader.tcoordAttrib, 2, gl.FLOAT, false, 4*4, 8)
+		BindBuffer(gl.ARRAY_BUFFER, c.vertexBuffer)
+		BufferData(gl.ARRAY_BUFFER, b, gl.STREAM_DRAW)
+		EnableVertexAttribArray(c.shader.vertexAttrib)
+		EnableVertexAttribArray(c.shader.tcoordAttrib)
+		VertexAttribPointer(c.shader.vertexAttrib, 2, gl.FLOAT, false, 4*4, 0)
+		VertexAttribPointer(c.shader.tcoordAttrib, 2, gl.FLOAT, false, 4*4, 8)
 
 		// Set view and texture just once per frame.
-		gl.Uniform1i(c.shader.locations[glnvgLocTEX], 0)
-		gl.Uniform2fv(c.shader.locations[glnvgLocVIEWSIZE], c.view[:])
+		Uniform1i(c.shader.locations[glnvgLocTEX], 0)
+		Uniform2fv(c.shader.locations[glnvgLocVIEWSIZE], c.view[:])
+		//projectionMatrix := []float32{
+		//	2. / 300, 0, 0, 0,
+		//	0, -2. / 300, 0,
+		//	0, 0, 0, 2. / 2,
+		//	0, -1, 1, 0, 1,
+		//}
+		//Uniform4fv(c.shader.locations[glnvgLocProjection], projectionMatrix[:])
 
 		for i := range c.calls {
 			call := &c.calls[i]
@@ -594,11 +604,11 @@ func (p *glParams) renderFlush() {
 				c.triangles(call)
 			}
 		}
-		gl.DisableVertexAttribArray(c.shader.vertexAttrib)
-		gl.DisableVertexAttribArray(c.shader.tcoordAttrib)
+		DisableVertexAttribArray(c.shader.vertexAttrib)
+		DisableVertexAttribArray(c.shader.tcoordAttrib)
 		gl.Disable(gl.CULL_FACE)
-		gl.BindBuffer(gl.ARRAY_BUFFER, gl.Buffer{})
-		gl.UseProgram(gl.Program{})
+		BindBuffer(gl.ARRAY_BUFFER, Buffer{})
+		UseProgram(Program{})
 		c.bindTexture(nil)
 	}
 	c.vertexes = c.vertexes[:0]
@@ -815,25 +825,25 @@ func (p *glParams) renderDelete() {
 	c := p.context
 	c.shader.deleteShader()
 	if c.vertexBuffer.Valid() {
-		gl.DeleteBuffer(c.vertexBuffer)
+		DeleteBuffer(c.vertexBuffer)
 	}
 	for _, texture := range c.textures {
 		if texture.tex.Valid() && (texture.flags&ImageNoDelete) == 0 {
-			gl.DeleteTexture(texture.tex)
+			DeleteTexture(texture.tex)
 		}
 	}
 	p.context = nil
 }
 
-func dumpShaderError(shader gl.Shader, name, typeName string) error {
-	str := gl.GetShaderInfoLog(shader)
+func dumpShaderError(shader Shader, name, typeName string) error {
+	str := GetShaderInfoLog(shader)
 	msg := fmt.Sprintf("Shader %s/%s error:\n%s\n", name, typeName, str)
 	dumpLog(msg)
 	return errors.New(msg)
 }
 
-func dumpProgramError(program gl.Program, name string) error {
-	str := gl.GetProgramInfoLog(program)
+func dumpProgramError(program Program, name string) error {
+	str := GetProgramInfoLog(program)
 	msg := fmt.Sprintf("Program %s error:\n%s\n", name, str)
 	dumpLog(msg)
 	return errors.New(msg)
