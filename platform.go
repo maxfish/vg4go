@@ -1,7 +1,9 @@
 package nanovgo
 
 import (
+	"encoding/binary"
 	"log"
+	"math"
 	"unsafe"
 )
 
@@ -20,7 +22,14 @@ func prepareTextureBuffer(data []byte, w, h, bpp int) []byte {
 func castFloat32ToByte(vertexes []float32) []byte {
 	// Convert []float32 list to []byte without copy
 	var b []byte
-	b = (*(*[1 << 20]byte)(unsafe.Pointer(&vertexes[0])))[:len(vertexes)*4]
+	if len(vertexes) > 65536 {
+		b = make([]byte, len(vertexes)*4)
+		for i, v := range vertexes {
+			binary.LittleEndian.PutUint32(b[4*i:], math.Float32bits(v))
+		}
+	} else {
+		b = (*(*[1 << 20]byte)(unsafe.Pointer(&vertexes[0])))[:len(vertexes)*4]
+	}
 	return b
 }
 
