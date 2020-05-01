@@ -8,8 +8,8 @@ import (
 type Float float32
 
 var shaderHeader = `
-#version 110
-#define NANOVG_GL2 1
+#version 330
+#define NANOVG_GL3 1
 #define UNIFORMARRAY_SIZE 11
 `
 

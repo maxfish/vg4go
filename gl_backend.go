@@ -3,7 +3,8 @@ package nanovgo
 import (
 	"errors"
 	"fmt"
-	"github.com/go-gl/gl/v2.1/gl"
+	"github.com/go-gl/gl/v3.2-core/gl"
+	//"os"
 	"strings"
 )
 
@@ -103,6 +104,7 @@ const (
 )
 
 type glContext struct {
+	vao			uint32
 	shader       glShader
 	view         [2]float32
 	textures     []*glTexture
@@ -275,10 +277,15 @@ func (c *glContext) fill(call *glCall) {
 	pathSentinel := call.pathOffset + call.pathCount
 
 	// Draw shapes
+	checkError(c, "#0 fill simple")
 	gl.Enable(gl.STENCIL_TEST)
+	checkError(c, "#1 fill simple")
 	c.setStencilMask(0xff)
+	checkError(c, "#2 fill simple")
 	c.setStencilFunc(gl.ALWAYS, 0x00, 0xff)
+	checkError(c, "#3 fill simple")
 	gl.ColorMask(false, false, false, false)
+	checkError(c, "#4 fill simple")
 
 	// set bindpoint for solid loc
 	c.setUniforms(call.uniformOffset, 0)
@@ -292,10 +299,10 @@ func (c *glContext) fill(call *glCall) {
 		path := &c.paths[i]
 		DrawArrays(gl.TRIANGLE_FAN, path.fillOffset, path.fillCount)
 	}
-	Enable(gl.CULL_FACE)
+	gl.Enable(gl.CULL_FACE)
 
 	// Draw anti-aliased pixels
-	ColorMask(true, true, true, true)
+	gl.ColorMask(true, true, true, true)
 	c.setUniforms(call.uniformOffset+1, call.image)
 
 	if c.flags&AntiAlias != 0 {
@@ -339,7 +346,7 @@ func (c *glContext) stroke(call *glCall) {
 	paths := c.paths[call.pathOffset : call.pathOffset+call.pathCount]
 
 	if c.flags&StencilStrokes != 0 {
-		Enable(gl.STENCIL_TEST)
+		gl.Enable(gl.STENCIL_TEST)
 		c.setStencilMask(0xff)
 
 		// Fill the stroke base without overlap
@@ -362,7 +369,7 @@ func (c *glContext) stroke(call *glCall) {
 		}
 
 		// Clear stencil buffer.
-		ColorMask(false, false, false, false)
+		gl.ColorMask(false, false, false, false)
 		c.setStencilFunc(gl.ALWAYS, 0x00, 0xff)
 		StencilOp(gl.ZERO, gl.ZERO, gl.ZERO)
 		checkError(c, "stroke fill 1")
@@ -370,7 +377,7 @@ func (c *glContext) stroke(call *glCall) {
 			path := &paths[i]
 			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
 		}
-		ColorMask(true, true, true, true)
+		gl.ColorMask(true, true, true, true)
 		Disable(gl.STENCIL_TEST)
 	} else {
 		c.setUniforms(call.uniformOffset, call.image)
@@ -553,13 +560,13 @@ func (p *glParams) renderFlush() {
 		UseProgram(c.shader.program)
 
 		BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
-		Enable(gl.CULL_FACE)
+		gl.Enable(gl.CULL_FACE)
 		CullFace(gl.BACK)
 		FrontFace(gl.CCW)
-		Enable(gl.BLEND)
+		gl.Enable(gl.BLEND)
 		Disable(gl.DEPTH_TEST)
 		Disable(gl.SCISSOR_TEST)
-		ColorMask(true, true, true, true)
+		gl.ColorMask(true, true, true, true)
 		StencilMask(0xffffffff)
 		StencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
 		StencilFunc(gl.ALWAYS, 0, 0xffffffff)
@@ -569,6 +576,11 @@ func (p *glParams) renderFlush() {
 		c.stencilFunc = gl.ALWAYS
 		c.stencilFuncRef = 0
 		c.stencilFuncMask = 0xffffffff
+
+		if c.vao == 0 {
+			gl.GenVertexArrays(1, &c.vao)
+		}
+		gl.BindVertexArray(c.vao)
 
 		b := castFloat32ToByte(c.vertexes)
 		//dumpLog("vertex:", c.vertexes)
@@ -856,6 +868,7 @@ func checkError(p *glContext, str string) {
 	err := gl.GetError()
 	if err != gl.NO_ERROR {
 		dumpLog("Error %08x after %s\n", int(err), str)
+		//os.Exit(0)
 	}
 }
 

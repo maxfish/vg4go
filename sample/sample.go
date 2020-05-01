@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/go-gl/gl/v2.1/gl"
+	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/shibukawa/nanovgo"
 	"github.com/shibukawa/nanovgo/perfgraph"
@@ -33,10 +33,10 @@ func main() {
 
 	//glfw.WindowHint(glfw.Samples, 4)
 	glfw.WindowHint(glfw.Resizable, glfw.True)
-	glfw.WindowHint(glfw.ContextVersionMajor, 2)
-	glfw.WindowHint(glfw.ContextVersionMinor, 1)
-	//glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
-	//glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.False)
+	glfw.WindowHint(glfw.ContextVersionMajor, 3)
+	glfw.WindowHint(glfw.ContextVersionMinor, 2)
+	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
+	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
 
 	window, err := glfw.CreateWindow(1000, 600, "NanoVGo", nil, nil)
 	if err != nil {

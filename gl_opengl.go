@@ -3,10 +3,11 @@ package nanovgo
 
 import (
 	"log"
+	"os"
 	"strings"
 	"unsafe"
 
-	"github.com/go-gl/gl/v2.1/gl"
+	"github.com/go-gl/gl/v3.2-core/gl"
 )
 
 // ContextWatcher is this library's context watcher, satisfying glfw.ContextWatcher interface.
@@ -172,14 +173,6 @@ func ClearDepthf(d float32) {
 // http://www.khronos.org/opengles/sdk/docs/man3/html/glClearStencil.xhtml
 func ClearStencil(s int) {
 	gl.ClearStencil(int32(s))
-}
-
-// ColorMask specifies whether color components in the framebuffer
-// can be written.
-//
-// http://www.khronos.org/opengles/sdk/docs/man3/html/glColorMask.xhtml
-func ColorMask(red, green, blue, alpha bool) {
-	gl.ColorMask(red, green, blue, alpha)
 }
 
 // CompileShader compiles the source code of s.
@@ -386,13 +379,6 @@ func DrawElements(mode Enum, count int, ty Enum, offset int) {
 	gl.DrawElements(uint32(mode), int32(count), uint32(ty), gl.PtrOffset(offset))
 }
 
-// Enable enables various GL capabilities.
-//
-// http://www.khronos.org/opengles/sdk/docs/man3/html/glEnable.xhtml
-func Enable(cap Enum) {
-	gl.Enable(uint32(cap))
-}
-
 // EnableVertexAttribArray enables a vertex attribute array.
 //
 // http://www.khronos.org/opengles/sdk/docs/man3/html/glEnableVertexAttribArray.xhtml
@@ -501,7 +487,13 @@ func GetAttachedShaders(p Program) []Shader {
 //
 // http://www.khronos.org/opengles/sdk/docs/man3/html/glGetAttribLocation.xhtml
 func GetAttribLocation(p Program, name string) Attrib {
-	return Attrib{Value: uint(gl.GetAttribLocation(p.Value, gl.Str(name+"\x00")))}
+	location := gl.GetAttribLocation(p.Value, gl.Str(name+"\x00"))
+	err := gl.GetError()
+	if err != gl.NO_ERROR {
+		dumpLog("Error %08x after %s\n", int(err), "GetAttribLocation")
+		os.Exit(0)
+	}
+	return Attrib{Value: uint(location)}
 }
 
 // GetBooleanv returns the boolean values of parameter pname.
