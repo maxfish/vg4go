@@ -1,7 +1,7 @@
 package demo
 
 import (
-	"github.com/shibukawa/nanovgo"
+	"github.com/maxfish/vg4go-gl4"
 	"math"
 	"strconv"
 )

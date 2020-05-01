@@ -2,7 +2,7 @@ package nanovgo
 
 import (
 	"bytes"
-	"github.com/shibukawa/nanovgo/fontstashmini"
+	"github.com/maxfish/vg4go-gl4/fontstashmini"
 	"image"
 	_ "image/jpeg" // to read jpeg
 	_ "image/png"  // to read png

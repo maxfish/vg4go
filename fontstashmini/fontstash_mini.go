@@ -1,7 +1,7 @@
 package fontstashmini
 
 import (
-	"github.com/shibukawa/nanovgo/fontstashmini/truetype"
+	"github.com/maxfish/vg4go-gl4/fontstashmini/truetype"
 	"io/ioutil"
 	"math"
 )

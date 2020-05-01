@@ -2,7 +2,7 @@ package perfgraph
 
 import (
 	"fmt"
-	"github.com/shibukawa/nanovgo"
+	"github.com/maxfish/vg4go-gl4"
 	"time"
 )
 

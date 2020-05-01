@@ -4,5 +4,3 @@ github.com/go-gl/glfw v0.0.0-20200420212212-258d9bec320e h1:d/6iiszw8nt7mrUmkD/z
 github.com/go-gl/glfw v0.0.0-20200420212212-258d9bec320e/go.mod h1:vR7hzQXu2zJy9AVAgeJqvqgH9Q5CA+iKCZ2gyEVpxRU=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20200420212212-258d9bec320e h1:8ywu4ELC/6owgOZlZx75CyYS5AYwUT2L+hzPModKvag=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20200420212212-258d9bec320e/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
-github.com/shibukawa/nanovgo v0.0.0-20160822101109-9141d09b3652 h1:7ORiLBcdIPEjwwbbjUpYIvy3Z6syqAhnfY/3m5DSs5M=
-github.com/shibukawa/nanovgo v0.0.0-20160822101109-9141d09b3652/go.mod h1:A/HWQKoHKEbx5r+LI6Lns9g6vSROSGw59APgU2Zr+Cc=

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/go-gl/gl/v4.1-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
-	"github.com/shibukawa/nanovgo"
-	"github.com/shibukawa/nanovgo/perfgraph"
-	"github.com/shibukawa/nanovgo/sample/demo"
+	"github.com/maxfish/vg4go-gl4"
+	"github.com/maxfish/vg4go-gl4/perfgraph"
+	"github.com/maxfish/vg4go-gl4/sample/demo"
 	"log"
 	"runtime"
 )
