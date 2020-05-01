@@ -3,7 +3,7 @@ NanoVGo-GL4
 
 Modified version of `NanoVGo <https://github.com/shibukawa/vg4go>`_. These are the main changes:
 * Removed support for mobile devices
-* Replaced github.com/goxjs/gl with github.com/go-gl/gl
+* Replaced github.com/goxjs/gl with github.com/go-gl/gl, and github.com/goxjs/glfw with github.com/go-gl/glfw
 * Upgraded to OpenGL 4.1 Core Profile
 * Reduced some wrapping code used in gl_backend
 * Removed the original documentation since the code has diverged. Look at the original documentation for more info
