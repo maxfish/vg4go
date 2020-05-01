@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/go-gl/gl/v3.2-core/gl"
+	"github.com/go-gl/gl/v4.1-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/shibukawa/nanovgo"
 	"github.com/shibukawa/nanovgo/perfgraph"
@@ -11,21 +11,20 @@ import (
 	"runtime"
 )
 
-var blowup bool
-var premult bool
-
-func key(w *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
-	if key == glfw.KeyEscape && action == glfw.Press {
-		w.SetShouldClose(true)
-	} else if key == glfw.KeySpace && action == glfw.Press {
-		blowup = !blowup
-	} else if key == glfw.KeyP && action == glfw.Press {
-		premult = !premult
+func initOpenGL() {
+	runtime.LockOSThread()
+	if err := gl.Init(); err != nil {
+		panic(err)
 	}
+	gl.Enable(gl.DEPTH_TEST)
+	gl.DepthMask(true)
+	gl.DepthFunc(gl.LEQUAL)
+	gl.DepthRange(0.0, 1.0)
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 }
 
 func main() {
-	runtime.LockOSThread()
 	if err := glfw.Init(); err != nil {
 		panic(err)
 	}
@@ -33,8 +32,8 @@ func main() {
 
 	//glfw.WindowHint(glfw.Samples, 4)
 	glfw.WindowHint(glfw.Resizable, glfw.True)
-	glfw.WindowHint(glfw.ContextVersionMajor, 3)
-	glfw.WindowHint(glfw.ContextVersionMinor, 2)
+	glfw.WindowHint(glfw.ContextVersionMajor, 4)
+	glfw.WindowHint(glfw.ContextVersionMinor, 1)
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
 
@@ -45,16 +44,7 @@ func main() {
 	window.SetKeyCallback(key)
 	window.MakeContextCurrent()
 
-	// OpenGL
-	if err := gl.Init(); err != nil {
-		panic(err)
-	}
-	gl.Enable(gl.DEPTH_TEST)
-	gl.DepthMask(true)
-	gl.DepthFunc(gl.LEQUAL)
-	gl.DepthRange(0.0, 1.0)
-	gl.Enable(gl.BLEND)
-	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+	initOpenGL()
 
 	version := gl.GoStr(gl.GetString(gl.VERSION))
 	fmt.Println("OpenGL version", version)
@@ -106,6 +96,19 @@ func main() {
 	}
 
 	demoData.FreeData(ctx)
+}
+
+var blowup bool
+var premult bool
+
+func key(w *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
+	if key == glfw.KeyEscape && action == glfw.Press {
+		w.SetShouldClose(true)
+	} else if key == glfw.KeySpace && action == glfw.Press {
+		blowup = !blowup
+	} else if key == glfw.KeyP && action == glfw.Press {
+		premult = !premult
+	}
 }
 
 func LoadDemo(ctx *nanovgo.Context) *demo.DemoData {

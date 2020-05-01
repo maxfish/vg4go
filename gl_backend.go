@@ -3,8 +3,7 @@ package nanovgo
 import (
 	"errors"
 	"fmt"
-	"github.com/go-gl/gl/v3.2-core/gl"
-	//"os"
+	"github.com/go-gl/gl/v4.1-core/gl"
 	"strings"
 )
 
@@ -27,40 +26,41 @@ func NewContext(flags CreateFlags) (*Context, error) {
 }
 
 type glShader struct {
-	program      Program
-	fragment     Shader
-	vertex       Shader
-	locations    [glnvgMaxLOCS]Uniform
-	vertexAttrib Attrib
-	tcoordAttrib Attrib
+	program      uint32
+	fragment     uint32
+	vertex       uint32
+	locations    [glnvgMaxLOCS]int32
+	vertexAttrib uint32
+	tcoordAttrib uint32
 }
 
 func (s *glShader) createShader(name, header, opts, vShader, fShader string) error {
-	program := CreateProgram()
+	program := gl.CreateProgram()
 
-	vertexShader := CreateShader(gl.VERTEX_SHADER)
-	resultingText := strings.Join([]string{header, opts, vShader}, "\n")
-	ShaderSource(vertexShader, resultingText)
-	CompileShader(vertexShader)
-	status := Enum(GetShaderi(vertexShader, gl.COMPILE_STATUS))
+	vertexShader := gl.CreateShader(gl.VERTEX_SHADER)
+	glsource, free := gl.Strs(strings.Join([]string{header, opts, vShader}, "\n") + "\x00")
+	gl.ShaderSource(vertexShader, 1, glsource, nil)
+	free()
+	gl.CompileShader(vertexShader)
+	status := GetShaderi(vertexShader, gl.COMPILE_STATUS)
 	if status != gl.TRUE {
 		return dumpShaderError(vertexShader, name, "vert")
 	}
 
-	fragmentShader := CreateShader(gl.FRAGMENT_SHADER)
-	resultingText = strings.Join([]string{header, opts, fShader}, "\n")
+	fragmentShader := gl.CreateShader(gl.FRAGMENT_SHADER)
+	resultingText := strings.Join([]string{header, opts, fShader}, "\n")
 	ShaderSource(fragmentShader, resultingText)
-	CompileShader(fragmentShader)
-	status = Enum(GetShaderi(fragmentShader, gl.COMPILE_STATUS))
+	gl.CompileShader(fragmentShader)
+	status = GetShaderi(fragmentShader, gl.COMPILE_STATUS)
 	if status != gl.TRUE {
 		return dumpShaderError(fragmentShader, name, "vert")
 	}
 
-	AttachShader(program, vertexShader)
-	AttachShader(program, fragmentShader)
+	gl.AttachShader(program, uint32(vertexShader))
+	gl.AttachShader(program, uint32(fragmentShader))
 
-	LinkProgram(program)
-	status = Enum(GetProgrami(program, gl.LINK_STATUS))
+	gl.LinkProgram(program)
+	status = GetProgrami(program, gl.LINK_STATUS)
 	if status != gl.TRUE {
 		return dumpProgramError(program, name)
 	}
@@ -76,27 +76,25 @@ func (s *glShader) createShader(name, header, opts, vShader, fShader string) err
 }
 
 func (s *glShader) deleteShader() {
-	if s.program.Valid() {
-		DeleteProgram(s.program)
+	if s.program != 0 {
+		gl.DeleteProgram(s.program)
+		s.program = 0
 	}
-	if s.vertex.Valid() {
-		DeleteShader(s.vertex)
+	if s.vertex != 0 {
+		gl.DeleteShader(s.vertex)
+		s.vertex = 0
 	}
-	if s.fragment.Valid() {
-		DeleteShader(s.fragment)
+	if s.fragment != 0 {
+		gl.DeleteShader(s.fragment)
+		s.fragment = 0
 	}
 }
 
 func (s *glShader) getUniforms() {
-	s.locations[glnvgLocVIEWSIZE] = GetUniformLocation(s.program, "viewSize")
-	s.locations[glnvgLocTEX] = GetUniformLocation(s.program, "tex")
-	s.locations[glnvgLocFRAG] = GetUniformLocation(s.program, "frag")
-	//s.locations[glnvgLocProjection] = GetUniformLocation(s.program, "projection")
+	s.locations[glnvgLocVIEWSIZE] = gl.GetUniformLocation(s.program, gl.Str("viewSize\x00"))
+	s.locations[glnvgLocTEX] = gl.GetUniformLocation(s.program, gl.Str("tex\x00"))
+	s.locations[glnvgLocFRAG] = gl.GetUniformLocation(s.program, gl.Str("frag\x00"))
 }
-
-const (
-	glnvgGLUniformArraySize = 11
-)
 
 const (
 	// ImageNoDelete don't delete from memory when removing image
@@ -109,7 +107,7 @@ type glContext struct {
 	view         [2]float32
 	textures     []*glTexture
 	textureID    int
-	vertexBuffer Buffer
+	vertexBuffer uint32
 	flags        CreateFlags
 	calls        []glCall
 	paths        []glPath
@@ -117,7 +115,7 @@ type glContext struct {
 	uniforms     []glFragUniforms
 
 	stencilMask     uint32
-	stencilFunc     Enum
+	stencilFunc     uint32
 	stencilFuncRef  int
 	stencilFuncMask uint32
 }
@@ -134,18 +132,18 @@ func (c *glContext) findTexture(id int) *glTexture {
 func (c *glContext) deleteTexture(id int) error {
 	tex := c.findTexture(id)
 	if tex != nil && (tex.flags&ImageNoDelete) == 0 {
-		DeleteTexture(tex.tex)
+		gl.DeleteTextures(1, &tex.tex)
 		tex.id = 0
 		return nil
 	}
 	return errors.New("can't find texture")
 }
 
-func (c *glContext) bindTexture(tex *Texture) {
+func (c *glContext) bindTexture(tex *uint32) {
 	if tex == nil {
-		BindTexture(gl.TEXTURE_2D, Texture{})
+		gl.BindTexture(gl.TEXTURE_2D, 0)
 	} else {
-		BindTexture(gl.TEXTURE_2D, *tex)
+		gl.BindTexture(gl.TEXTURE_2D, (*tex))
 	}
 }
 
@@ -156,12 +154,12 @@ func (c *glContext) setStencilMask(mask uint32) {
 	}
 }
 
-func (c *glContext) setStencilFunc(fun Enum, ref int, mask uint32) {
+func (c *glContext) setStencilFunc(fun uint32, ref int, mask uint32) {
 	if c.stencilFunc != fun || c.stencilFuncRef != ref || c.stencilFuncMask != mask {
 		c.stencilFunc = fun
 		c.stencilFuncRef = ref
 		c.stencilMask = mask
-		StencilFunc(fun, ref, mask)
+		gl.StencilFunc(uint32(fun),int32( ref), mask)
 	}
 }
 
@@ -263,13 +261,14 @@ func (c *glContext) convertPaint(frag *glFragUniforms, paint *Paint, scissor *nv
 
 func (c *glContext) setUniforms(uniformOffset, image int) {
 	frag := c.uniforms[uniformOffset]
-	Uniform4fv(c.shader.locations[glnvgLocFRAG], frag[:])
+	gl.Uniform4fv(c.shader.locations[glnvgLocFRAG], int32(len(frag[:])/4), &frag[:][0])
 
 	if image != 0 {
 		c.bindTexture(&c.findTexture(image).tex)
 		checkError(c, "tex paint tex")
 	} else {
-		c.bindTexture(&Texture{})
+		var none uint32 = 0
+		c.bindTexture(&none)
 	}
 }
 
@@ -291,13 +290,13 @@ func (c *glContext) fill(call *glCall) {
 	c.setUniforms(call.uniformOffset, 0)
 	checkError(c, "fill simple")
 
-	StencilOpSeparate(gl.FRONT, gl.KEEP, gl.KEEP, gl.INCR_WRAP)
-	StencilOpSeparate(gl.BACK, gl.KEEP, gl.KEEP, gl.DECR_WRAP)
+	gl.StencilOpSeparate(gl.FRONT, gl.KEEP, gl.KEEP, gl.INCR_WRAP)
+	gl.StencilOpSeparate(gl.BACK, gl.KEEP, gl.KEEP, gl.DECR_WRAP)
 
 	gl.Disable(gl.CULL_FACE)
 	for i := call.pathOffset; i < pathSentinel; i++ {
 		path := &c.paths[i]
-		DrawArrays(gl.TRIANGLE_FAN, path.fillOffset, path.fillCount)
+		gl.DrawArrays(gl.TRIANGLE_FAN, int32(path.fillOffset), int32(path.fillCount))
 	}
 	gl.Enable(gl.CULL_FACE)
 
@@ -311,16 +310,16 @@ func (c *glContext) fill(call *glCall) {
 		// Draw fringes
 		for i := call.pathOffset; i < pathSentinel; i++ {
 			path := &c.paths[i]
-			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			gl.DrawArrays(gl.TRIANGLE_STRIP, int32(path.strokeOffset), int32(path.strokeCount))
 		}
 	}
 
 	// Draw fill
 	c.setStencilFunc(gl.NOTEQUAL, 0x00, 0xff)
-	StencilOp(gl.ZERO, gl.ZERO, gl.ZERO)
-	DrawArrays(gl.TRIANGLES, call.triangleOffset, call.triangleCount)
+	gl.StencilOp(gl.ZERO, gl.ZERO, gl.ZERO)
+	gl.DrawArrays(gl.TRIANGLES, int32(call.triangleOffset), int32(call.triangleCount))
 
-	Disable(gl.STENCIL_TEST)
+	gl.Disable(gl.STENCIL_TEST)
 }
 
 func (c *glContext) convexFill(call *glCall) {
@@ -331,13 +330,13 @@ func (c *glContext) convexFill(call *glCall) {
 
 	for i := range paths {
 		path := &paths[i]
-		DrawArrays(gl.TRIANGLE_FAN, path.fillOffset, path.fillCount)
+		gl.DrawArrays(gl.TRIANGLE_FAN, int32(path.fillOffset), int32(path.fillCount))
 	}
 
 	if c.flags&AntiAlias != 0 {
 		for i := range paths {
 			path := &paths[i]
-			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			gl.DrawArrays(gl.TRIANGLE_STRIP, int32(path.strokeOffset), int32(path.strokeCount))
 		}
 	}
 }
@@ -351,40 +350,40 @@ func (c *glContext) stroke(call *glCall) {
 
 		// Fill the stroke base without overlap
 		c.setStencilFunc(gl.EQUAL, 0x00, 0xff)
-		StencilOp(gl.KEEP, gl.KEEP, gl.INCR)
+		gl.StencilOp(gl.KEEP, gl.KEEP, gl.INCR)
 		c.setUniforms(call.uniformOffset+1, call.image)
 		checkError(c, "stroke fill 0")
 		for i := range paths {
 			path := &paths[i]
-			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			gl.DrawArrays(gl.TRIANGLE_STRIP, int32(path.strokeOffset), int32(path.strokeCount))
 		}
 
 		// Draw anti-aliased pixels.
 		c.setUniforms(call.uniformOffset, call.image)
 		c.setStencilFunc(gl.EQUAL, 0x00, 0xff)
-		StencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
+		gl.StencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
 		for i := range paths {
 			path := &paths[i]
-			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			gl.DrawArrays(gl.TRIANGLE_STRIP, int32(path.strokeOffset), int32(path.strokeCount))
 		}
 
 		// Clear stencil buffer.
 		gl.ColorMask(false, false, false, false)
 		c.setStencilFunc(gl.ALWAYS, 0x00, 0xff)
-		StencilOp(gl.ZERO, gl.ZERO, gl.ZERO)
+		gl.StencilOp(gl.ZERO, gl.ZERO, gl.ZERO)
 		checkError(c, "stroke fill 1")
 		for i := range paths {
 			path := &paths[i]
-			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			gl.DrawArrays(gl.TRIANGLE_STRIP, int32(path.strokeOffset), int32(path.strokeCount))
 		}
 		gl.ColorMask(true, true, true, true)
-		Disable(gl.STENCIL_TEST)
+		gl.Disable(gl.STENCIL_TEST)
 	} else {
 		c.setUniforms(call.uniformOffset, call.image)
 		checkError(c, "stroke fill")
 		for i := range paths {
 			path := &paths[i]
-			DrawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.strokeCount)
+			gl.DrawArrays(gl.TRIANGLE_STRIP, int32(path.strokeOffset), int32(path.strokeCount))
 		}
 	}
 }
@@ -392,7 +391,7 @@ func (c *glContext) stroke(call *glCall) {
 func (c *glContext) triangles(call *glCall) {
 	c.setUniforms(call.uniformOffset, call.image)
 	checkError(c, "triangles fill")
-	DrawArrays(gl.TRIANGLES, call.triangleOffset, call.triangleCount)
+	gl.DrawArrays(gl.TRIANGLES, int32(call.triangleOffset), int32(call.triangleCount))
 }
 
 type glParams struct {
@@ -428,7 +427,7 @@ func (p *glParams) renderCreate() error {
 	context.vertexBuffer = CreateBuffer()
 
 	checkError(context, "create done")
-	Finish()
+	gl.Finish()
 	return nil
 }
 
@@ -451,7 +450,7 @@ func (p *glParams) renderCreateTexture(texType nvgTextureType, w, h int, flags I
 	tex.flags = flags
 
 	p.context.bindTexture(&tex.tex)
-	PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 
 	if texType == nvgTextureRGBA {
 		data = prepareTextureBuffer(data, w, h, 4)
@@ -462,42 +461,43 @@ func (p *glParams) renderCreateTexture(texType nvgTextureType, w, h int, flags I
 	}
 
 	if (flags & ImageGenerateMipmaps) != 0 {
-		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
 	} else {
-		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
 	}
-	TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
 	if (flags & ImageRepeatX) != 0 {
-		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
 	} else {
-		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	}
 
 	if (flags & ImageRepeatY) != 0 {
-		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
 	} else {
-		TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	}
 
-	PixelStorei(gl.UNPACK_ALIGNMENT, 4)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 4)
 
 	if (flags & ImageGenerateMipmaps) != 0 {
-		GenerateMipmap(gl.TEXTURE_2D)
+		gl.GenerateMipmap(gl.TEXTURE_2D)
 	}
 
 	p.context.checkError("create tex")
-	p.context.bindTexture(&Texture{})
+	var none uint32 = 0
+	p.context.bindTexture(&none)
 
 	return tex.id
 }
 
 func (p *glParams) renderDeleteTexture(id int) error {
 	tex := p.context.findTexture(id)
-	if tex.tex.Valid() && (tex.flags&ImageNoDelete) == 0 {
-		DeleteTexture(tex.tex)
+	if tex.tex != 0 && (tex.flags&ImageNoDelete) == 0 {
+		gl.DeleteTextures(1, &tex.tex)
 		tex.id = 0
-		tex.tex = Texture{}
+		tex.tex = 0
 		return nil
 	}
 	return errors.New("invalid texture in GLParams.deleteTexture")
@@ -509,7 +509,7 @@ func (p *glParams) renderUpdateTexture(image, x, y, w, h int, data []byte) error
 		return errors.New("invalid texture in GLParams.updateTexture")
 	}
 	p.context.bindTexture(&tex.tex)
-	PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 
 	if tex.texType == nvgTextureRGBA {
 		data = data[y*tex.width*4:]
@@ -520,12 +520,12 @@ func (p *glParams) renderUpdateTexture(image, x, y, w, h int, data []byte) error
 	w = tex.width
 
 	if tex.texType == nvgTextureRGBA {
-		TexSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, data)
+		gl.TexSubImage2D(gl.TEXTURE_2D, 0, int32(x), int32(y), int32(w), int32(h), gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(&data[0]))
 	} else {
-		TexSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RED, gl.UNSIGNED_BYTE, data)
+		gl.TexSubImage2D(gl.TEXTURE_2D, 0, int32(x), int32(y), int32(w), int32(h), gl.RED, gl.UNSIGNED_BYTE, gl.Ptr(&data[0]))
 	}
 
-	PixelStorei(gl.UNPACK_ALIGNMENT, 4)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 4)
 
 	p.context.bindTexture(nil)
 
@@ -557,21 +557,21 @@ func (p *glParams) renderFlush() {
 	c := p.context
 
 	if len(c.calls) > 0 {
-		UseProgram(c.shader.program)
+		gl.UseProgram(c.shader.program)
 
-		BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+		gl.BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
 		gl.Enable(gl.CULL_FACE)
-		CullFace(gl.BACK)
-		FrontFace(gl.CCW)
+		gl.CullFace(gl.BACK)
+		gl.FrontFace(gl.CCW)
 		gl.Enable(gl.BLEND)
-		Disable(gl.DEPTH_TEST)
-		Disable(gl.SCISSOR_TEST)
+		gl.Disable(gl.DEPTH_TEST)
+		gl.Disable(gl.SCISSOR_TEST)
 		gl.ColorMask(true, true, true, true)
-		StencilMask(0xffffffff)
-		StencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
-		StencilFunc(gl.ALWAYS, 0, 0xffffffff)
-		ActiveTexture(gl.TEXTURE0)
-		BindTexture(gl.TEXTURE_2D, Texture{})
+		gl.StencilMask(0xffffffff)
+		gl.StencilOp(gl.KEEP, gl.KEEP, gl.KEEP)
+		gl.StencilFunc(gl.ALWAYS, 0, 0xffffffff)
+		gl.ActiveTexture(gl.TEXTURE0)
+		gl.BindTexture(gl.TEXTURE_2D, 0)
 		c.stencilMask = 0xffffffff
 		c.stencilFunc = gl.ALWAYS
 		c.stencilFuncRef = 0
@@ -585,23 +585,16 @@ func (p *glParams) renderFlush() {
 		b := castFloat32ToByte(c.vertexes)
 		//dumpLog("vertex:", c.vertexes)
 		// Upload vertex data
-		BindBuffer(gl.ARRAY_BUFFER, c.vertexBuffer)
-		BufferData(gl.ARRAY_BUFFER, b, gl.STREAM_DRAW)
-		EnableVertexAttribArray(c.shader.vertexAttrib)
-		EnableVertexAttribArray(c.shader.tcoordAttrib)
-		VertexAttribPointer(c.shader.vertexAttrib, 2, gl.FLOAT, false, 4*4, 0)
-		VertexAttribPointer(c.shader.tcoordAttrib, 2, gl.FLOAT, false, 4*4, 8)
+		gl.BindBuffer(gl.ARRAY_BUFFER, c.vertexBuffer)
+		gl.BufferData(gl.ARRAY_BUFFER, int(len(b)), gl.Ptr(&b[0]), gl.STREAM_DRAW)
+		gl.EnableVertexAttribArray(c.shader.vertexAttrib)
+		gl.EnableVertexAttribArray(c.shader.tcoordAttrib)
+		gl.VertexAttribPointer(c.shader.vertexAttrib, 2, gl.FLOAT, false, 4*4, gl.PtrOffset(0))
+		gl.VertexAttribPointer(c.shader.tcoordAttrib, 2, gl.FLOAT, false, 4*4, gl.PtrOffset(8))
 
 		// Set view and texture just once per frame.
-		Uniform1i(c.shader.locations[glnvgLocTEX], 0)
-		Uniform2fv(c.shader.locations[glnvgLocVIEWSIZE], c.view[:])
-		//projectionMatrix := []float32{
-		//	2. / 300, 0, 0, 0,
-		//	0, -2. / 300, 0,
-		//	0, 0, 0, 2. / 2,
-		//	0, -1, 1, 0, 1,
-		//}
-		//Uniform4fv(c.shader.locations[glnvgLocProjection], projectionMatrix[:])
+		gl.Uniform1i(c.shader.locations[glnvgLocTEX], 0)
+		gl.Uniform2fv(c.shader.locations[glnvgLocVIEWSIZE], int32(len(c.view[:])/2), &c.view[:][0])
 
 		for i := range c.calls {
 			call := &c.calls[i]
@@ -616,11 +609,11 @@ func (p *glParams) renderFlush() {
 				c.triangles(call)
 			}
 		}
-		DisableVertexAttribArray(c.shader.vertexAttrib)
-		DisableVertexAttribArray(c.shader.tcoordAttrib)
+		gl.DisableVertexAttribArray(c.shader.vertexAttrib)
+		gl.DisableVertexAttribArray(c.shader.tcoordAttrib)
 		gl.Disable(gl.CULL_FACE)
-		BindBuffer(gl.ARRAY_BUFFER, Buffer{})
-		UseProgram(Program{})
+		gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+		gl.UseProgram(0)
 		c.bindTexture(nil)
 	}
 	c.vertexes = c.vertexes[:0]
@@ -836,25 +829,27 @@ func (p *glParams) renderTriangles(paint *Paint, scissor *nvgScissor, vertexes [
 func (p *glParams) renderDelete() {
 	c := p.context
 	c.shader.deleteShader()
-	if c.vertexBuffer.Valid() {
-		DeleteBuffer(c.vertexBuffer)
+	if c.vertexBuffer != 0 {
+		gl.DeleteBuffers(1, &c.vertexBuffer)
+		c.vertexBuffer = 0
 	}
 	for _, texture := range c.textures {
-		if texture.tex.Valid() && (texture.flags&ImageNoDelete) == 0 {
-			DeleteTexture(texture.tex)
+		if texture.tex != 0 && (texture.flags&ImageNoDelete) == 0 {
+			gl.DeleteTextures(1, &texture.tex)
+			texture.tex = 0
 		}
 	}
 	p.context = nil
 }
 
-func dumpShaderError(shader Shader, name, typeName string) error {
+func dumpShaderError(shader uint32, name, typeName string) error {
 	str := GetShaderInfoLog(shader)
 	msg := fmt.Sprintf("Shader %s/%s error:\n%s\n", name, typeName, str)
 	dumpLog(msg)
 	return errors.New(msg)
 }
 
-func dumpProgramError(program Program, name string) error {
+func dumpProgramError(program uint32, name string) error {
 	str := GetProgramInfoLog(program)
 	msg := fmt.Sprintf("Program %s error:\n%s\n", name, str)
 	dumpLog(msg)
@@ -882,151 +877,104 @@ func maxVertexCount(paths []nvgPath) int {
 	return count
 }
 
-var fillVertexShader = `
-#ifdef NANOVG_GL3
+const (
+fillVertexShader = `
    uniform vec2 viewSize;
    in vec2 vertex;
    in vec2 tcoord;
    out vec2 ftcoord;
    out vec2 fpos;
-#else
-   uniform vec2 viewSize;
-   attribute vec2 vertex;
-   attribute vec2 tcoord;
-   varying vec2 ftcoord;
-   varying vec2 fpos;
-#endif
-void main(void) {
-   ftcoord = tcoord;
-   fpos = vertex;
-   gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);
-}`
 
-var fillFragmentShader = `
-#ifdef GL_ES
-#if defined(GL_FRAGMENT_PRECISION_HIGH) || defined(NANOVG_GL3)
- precision highp float;
-#else
- precision mediump float;
-#endif
-#endif
-#ifdef NANOVG_GL3
-#ifdef USE_UNIFORMBUFFER
-       layout(std140) uniform frag {
-               mat3 scissorMat;
-               mat3 paintMat;
-               vec4 innerCol;
-               vec4 outerCol;
-               vec2 scissorExt;
-               vec2 scissorScale;
-               vec2 extent;
-               float radius;
-               float feather;
-               float strokeMult;
-               float strokeThr;
-               int texType;
-               int type;
-       };
-#else
-       // NANOVG_GL3 && !USE_UNIFORMBUF
-       uniform vec4 frag[UNIFORMARRAY_SIZE];
-#endif
-       uniform sampler2D tex;
-       in vec2 ftcoord;
-       in vec2 fpos;
-       out vec4 outColor;
-#else
-       // !NANOVG_GL3
-       uniform vec4 frag[UNIFORMARRAY_SIZE];
-       uniform sampler2D tex;
-       varying vec2 ftcoord;
-       varying vec2 fpos;
-#endif
-#ifndef USE_UNIFORMBUFFER
-       #define scissorMat mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)
-       #define paintMat mat3(frag[3].xyz, frag[4].xyz, frag[5].xyz)
-       #define innerCol frag[6]
-       #define outerCol frag[7]
-       #define scissorExt frag[8].xy
-       #define scissorScale frag[8].zw
-       #define extent frag[9].xy
-       #define radius frag[9].z
-       #define feather frag[9].w
-       #define strokeMult frag[10].x
-       #define strokeThr frag[10].y
-       #define texType int(frag[10].z)
-       #define type int(frag[10].w)
-#endif
+	void main(void) {
+	   ftcoord = tcoord;
+	   fpos = vertex;
+	   gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);
+	}
+`
+fillFragmentShader = `
+	precision highp float;
 
-float sdroundrect(vec2 pt, vec2 ext, float rad) {
-       vec2 ext2 = ext - vec2(rad,rad);
-       vec2 d = abs(pt) - ext2;
-       return min(max(d.x,d.y),0.0) + length(max(d,0.0)) - rad;
-}
+	uniform vec4 frag[UNIFORMARRAY_SIZE];
+	uniform sampler2D tex;
+	in vec2 ftcoord;
+	in vec2 fpos;
+	out vec4 outColor;
 
-// Scissoring
-float scissorMask(vec2 p) {
-       vec2 sc = (abs((scissorMat * vec3(p,1.0)).xy) - scissorExt);
-       sc = vec2(0.5,0.5) - sc * scissorScale;
-       return clamp(sc.x,0.0,1.0) * clamp(sc.y,0.0,1.0);
-}
-#ifdef EDGE_AA
-// Stroke - from [0..1] to clipped pyramid, where the slope is 1px.
-float strokeMask() {
-       return min(1.0, (1.0-abs(ftcoord.x*2.0-1.0))*strokeMult) * min(1.0, ftcoord.y);
-}
-#endif
+	#define scissorMat mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)
+	#define paintMat mat3(frag[3].xyz, frag[4].xyz, frag[5].xyz)
+	#define innerCol frag[6]
+	#define outerCol frag[7]
+	#define scissorExt frag[8].xy
+	#define scissorScale frag[8].zw
+	#define extent frag[9].xy
+	#define radius frag[9].z
+	#define feather frag[9].w
+	#define strokeMult frag[10].x
+	#define strokeThr frag[10].y
+	#define texType int(frag[10].z)
+	#define type int(frag[10].w)
 
-void main(void) {
-   vec4 result;
-       float scissor = scissorMask(fpos);
-#ifdef EDGE_AA
-       float strokeAlpha = strokeMask();
-#else
-       float strokeAlpha = 1.0;
-#endif
-       if (type == 0) {                        // Gradient
-               // Calculate gradient color using box gradient
-               vec2 pt = (paintMat * vec3(fpos,1.0)).xy;
-               float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);
-               vec4 color = mix(innerCol,outerCol,d);
-               // Combine alpha
-               color *= strokeAlpha * scissor;
-               result = color;
-       } else if (type == 1) {         // Image
-               // Calculate color fron texture
-               vec2 pt = (paintMat * vec3(fpos,1.0)).xy / extent;
-#ifdef NANOVG_GL3
-               vec4 color = texture(tex, pt);
-#else
-               vec4 color = texture2D(tex, pt);
-#endif
-               if (texType == 1) color = vec4(color.xyz*color.w,color.w);
-               if (texType == 2) color = vec4(color.x);
-               // Apply color tint and alpha.
-               color *= innerCol;
-               // Combine alpha
-               color *= strokeAlpha * scissor;
-               result = color;
-       } else if (type == 2) {         // Stencil fill
-               result = vec4(1,1,1,1);
-       } else if (type == 3) {         // Textured tris
-#ifdef NANOVG_GL3
-               vec4 color = texture(tex, ftcoord);
-#else
-               vec4 color = texture2D(tex, ftcoord);
-#endif
-               if (texType == 1) color = vec4(color.xyz*color.w,color.w);
-               if (texType == 2) color = vec4(color.x);
-               color *= scissor;
-               result = color * innerCol;
-       }
-#ifdef EDGE_AA
-       if (strokeAlpha < strokeThr) discard;
-#endif
-#ifdef NANOVG_GL3
-       outColor = result;
-#else
-       gl_FragColor = result;
-#endif
-}`
+	float sdroundrect(vec2 pt, vec2 ext, float rad) {
+		   vec2 ext2 = ext - vec2(rad,rad);
+		   vec2 d = abs(pt) - ext2;
+		   return min(max(d.x,d.y),0.0) + length(max(d,0.0)) - rad;
+	}
+
+	// Scissoring
+	float scissorMask(vec2 p) {
+		   vec2 sc = (abs((scissorMat * vec3(p,1.0)).xy) - scissorExt);
+		   sc = vec2(0.5,0.5) - sc * scissorScale;
+		   return clamp(sc.x,0.0,1.0) * clamp(sc.y,0.0,1.0);
+	}
+
+	#ifdef EDGE_AA
+	// Stroke - from [0..1] to clipped pyramid, where the slope is 1px.
+	float strokeMask() {
+		   return min(1.0, (1.0-abs(ftcoord.x*2.0-1.0))*strokeMult) * min(1.0, ftcoord.y);
+	}
+	#endif
+
+	void main(void) {
+		vec4 result;
+	 	float scissor = scissorMask(fpos);
+	#ifdef EDGE_AA
+		float strokeAlpha = strokeMask();
+	#else
+		float strokeAlpha = 1.0;
+	#endif
+		if (type == 0) {                        // Gradient
+			// Calculate gradient color using box gradient
+			vec2 pt = (paintMat * vec3(fpos,1.0)).xy;
+			float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);
+			vec4 color = mix(innerCol,outerCol,d);
+			// Combine alpha
+			color *= strokeAlpha * scissor;
+			result = color;
+		} else if (type == 1) {         // Image
+			// Calculate color fron texture
+			vec2 pt = (paintMat * vec3(fpos,1.0)).xy / extent;
+			vec4 color = texture(tex, pt);
+			
+			if (texType == 1) color = vec4(color.xyz*color.w,color.w);
+			if (texType == 2) color = vec4(color.x);
+			// Apply color tint and alpha.
+			color *= innerCol;
+			// Combine alpha
+			color *= strokeAlpha * scissor;
+			result = color;
+		} else if (type == 2) {         // Stencil fill
+			result = vec4(1,1,1,1);
+		} else if (type == 3) {         // Textured tris
+			vec4 color = texture(tex, ftcoord);
+			if (texType == 1) color = vec4(color.xyz*color.w,color.w);
+			if (texType == 2) color = vec4(color.x);
+			color *= scissor;
+			result = color * innerCol;
+		}
+	#ifdef EDGE_AA
+		if (strokeAlpha < strokeThr) discard;
+	#endif
+		outColor = result;
+	}
+`
+)

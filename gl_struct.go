@@ -104,7 +104,7 @@ func (u *glFragUniforms) setType(typeCode float32) {
 
 type glTexture struct {
 	id            int
-	tex           Texture
+	tex           uint32
 	width, height int
 	texType       nvgTextureType
 	flags         ImageFlags
